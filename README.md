@@ -1,4 +1,4 @@
-# 知音 / Zhiyin（Project Resonance）
+# 知音（Zhiyin）
 
 > 专为言语障碍用户设计的智能语音训练系统
 
@@ -9,7 +9,7 @@
 
 ## 🌟 项目简介
 
-**知音（Zhiyin，Project Resonance）** 是一个专为言语障碍用户设计的智能语音训练系统。通过先进的语音识别和语音合成技术，帮助用户进行个性化语音训练，提升沟通能力。
+**知音（Zhiyin）** 是一个专为言语障碍用户设计的智能语音训练系统。通过先进的语音识别和语音合成技术，帮助用户进行个性化语音训练，提升沟通能力。
 
 ## 📁 项目结构
 
@@ -62,22 +62,56 @@ git submodule update --init --recursive
 # git -C frontend/android/third_party/llama.cpp checkout ad6c66839af3c5646fba8c6c2e2087a1e4e38948
 ```
 
-### 2. 准备模型
+### 2. 下载模型并放到指定目录
 
-从 ModelScope 下载两个官方 GGUF，放到仓库根目录的 `models/`：
+模型权重托管在 ModelScope：
 
-```bash
-# https://www.modelscope.cn/models/Fuller001/R2T2_gguf
-models/Confucius4-R2T2-Q4_K_M.gguf       # 1,107,404,736 B
-models/mmproj-Confucius4-R2T2-Q8_0.gguf  # 348,336,544 B
-```
+**https://www.modelscope.cn/models/Fuller001/R2T2_gguf**
 
-SHA-256 必须匹配，否则构建会失败：
+| ModelScope 文件 | 本地放置位置（相对仓库根目录） | 大小 |
+|---|---|---:|
+| `Confucius4-R2T2-Q4_K_M.gguf` | `models/Confucius4-R2T2-Q4_K_M.gguf` | 1,107,404,736 B |
+| `mmproj-Confucius4-R2T2-Q8_0.gguf` | `models/mmproj-Confucius4-R2T2-Q8_0.gguf` | 348,336,544 B |
+
+即最终目录结构必须是：
 
 ```text
-fa3cb46c8c3a66a58812b9098ba6e96a0266d4e8c9b3cf5ba34432fd2f9f6466  Confucius4-R2T2-Q4_K_M.gguf
-8dc2c67e6a0484114928142d098db7ad94ae9f34c78948ef9d37a9678418cb65  mmproj-Confucius4-R2T2-Q8_0.gguf
+PROJECTRESONANCE/
+├── models/
+│   ├── Confucius4-R2T2-Q4_K_M.gguf
+│   └── mmproj-Confucius4-R2T2-Q8_0.gguf
+├── frontend/
+└── worker/
 ```
+
+下载方式（任选一种）：
+
+```bash
+# 1) ModelScope CLI / SDK
+modelscope download --model Fuller001/R2T2_gguf Confucius4-R2T2-Q4_K_M.gguf --local_dir models
+modelscope download --model Fuller001/R2T2_gguf mmproj-Confucius4-R2T2-Q8_0.gguf --local_dir models
+
+# 2) git（需要 git-lfs）
+git lfs install
+git clone https://www.modelscope.cn/Fuller001/R2T2_gguf.git
+# 把两个 .gguf 复制到本仓库的 models/ 下
+```
+
+SHA-256 必须与下表一致，否则 Gradle 会直接构建失败：
+
+```text
+fa3cb46c8c3a66a58812b9098ba6e96a0266d4e8c9b3cf5ba34432fd2f9f6466  models/Confucius4-R2T2-Q4_K_M.gguf
+8dc2c67e6a0484114928142d098db7ad94ae9f34c78948ef9d37a9678418cb65  models/mmproj-Confucius4-R2T2-Q8_0.gguf
+```
+
+校验：
+
+```bash
+cd models
+sha256sum Confucius4-R2T2-Q4_K_M.gguf mmproj-Confucius4-R2T2-Q8_0.gguf
+```
+
+> `models/` 已被 `.gitignore` 排除，权重不会进入 Git 仓库；只用于本地打包。
 
 ### 3. 构建前端并同步到 Android
 
