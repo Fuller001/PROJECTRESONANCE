@@ -1,4 +1,4 @@
-# Project Resonance（共鸣）
+# 知音 / Zhiyin（Project Resonance）
 
 > 专为言语障碍用户设计的智能语音训练系统
 
@@ -9,7 +9,7 @@
 
 ## 🌟 项目简介
 
-**Project Resonance（共鸣）** 是一个专为言语障碍用户设计的智能语音训练系统。通过先进的语音识别和语音合成技术，帮助用户进行个性化语音训练，提升沟通能力。
+**知音（Zhiyin，Project Resonance）** 是一个专为言语障碍用户设计的智能语音训练系统。通过先进的语音识别和语音合成技术，帮助用户进行个性化语音训练，提升沟通能力。
 
 ## 📁 项目结构
 
@@ -34,6 +34,94 @@ project-resonance-src/
 │   └── package.json         # Worker 依赖配置
 └── README.md                 # 项目说明文档
 ```
+
+
+## 🤖 Android 端侧版编译
+
+Android 版把识别模型直接打进安装包：首次启动在本地展开并校验权重，之后**完全离线**识别（CPU 推理，不依赖 NPU / 云端）。
+
+### 环境要求
+
+| 组件 | 版本 |
+|---|---|
+| Node.js | 20+ |
+| JDK | 21 |
+| Android SDK | compileSdk / targetSdk 36 |
+| Android NDK | `28.2.13676358` |
+| CMake | `3.22.1` |
+| Python（可选，仅工具脚本） | 3.11 |
+
+### 1. 取回 llama.cpp 子模块
+
+仓库不包含 `llama.cpp` 源码，需按固定提交检出（导出/对齐都基于该版本）：
+
+```bash
+git submodule update --init --recursive
+# 如未登记子模块，可手动放置：
+# git clone https://github.com/ggml-org/llama.cpp.git frontend/android/third_party/llama.cpp
+# git -C frontend/android/third_party/llama.cpp checkout ad6c66839af3c5646fba8c6c2e2087a1e4e38948
+```
+
+### 2. 准备模型
+
+从 ModelScope 下载两个官方 GGUF，放到仓库根目录的 `models/`：
+
+```bash
+# https://www.modelscope.cn/models/Fuller001/R2T2_gguf
+models/Confucius4-R2T2-Q4_K_M.gguf       # 1,107,404,736 B
+models/mmproj-Confucius4-R2T2-Q8_0.gguf  # 348,336,544 B
+```
+
+SHA-256 必须匹配，否则构建会失败：
+
+```text
+fa3cb46c8c3a66a58812b9098ba6e96a0266d4e8c9b3cf5ba34432fd2f9f6466  Confucius4-R2T2-Q4_K_M.gguf
+8dc2c67e6a0484114928142d098db7ad94ae9f34c78948ef9d37a9678418cb65  mmproj-Confucius4-R2T2-Q8_0.gguf
+```
+
+### 3. 构建前端并同步到 Android
+
+```bash
+cd frontend
+npm ci
+npm run typecheck
+npm run test
+npm run build
+npx cap sync android
+```
+
+### 4. 打包 APK（含模型）
+
+```bash
+cd android
+./gradlew :app:prepareBundledModels      # 校验并复制权重到 assets（哈希不符即失败）
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+```
+
+产物：
+
+```text
+frontend/android/app/build/outputs/apk/debug/app-debug.apk   # 约 1.37 GiB
+```
+
+- `prepareBundledModels` 只读取 `models/` 下这两个文件，模型以 ZIP **STORED** 方式入包，首启直接流式展开。
+- 只想得到不含模型的小包（首启在应用内下载）时，跳过该任务即可。
+- 安装后首次启动会校验并复制权重（实测约 6 秒），需要约 5 GB 可用空间。
+
+### 5. 设备要求
+
+- Android 7 / API 24 以上，`arm64-v8a`
+- 运行时按 CPU 能力自动选择 ARMv8.0–v9.2 内核，设置里可强制「基础 CPU」兼容模式
+- 官方 6.74 秒样音在 Snapdragon 8 Gen 1 上约 3.3–3.9 秒完成识别
+
+### 常见问题
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| `Missing or wrong-sized bundled model` | `models/` 路径不对或文件不完整 |
+| `Bundled model SHA-256 mismatch` | 模型被改动或下载损坏，重新下载 |
+| 首次启动提示存储不足 | 需 ≥5 GB 可用空间（安装包 + 私有模型） |
+| 识别很慢 | 设置里确认未强制「基础 CPU」模式 |
 
 ## 🚀 快速开始
 
