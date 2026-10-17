@@ -1,0 +1,11 @@
+Project Resonance Android / Confucius4-R2T2 integration
+
+Project Resonance: Copyright (c) 2026 元脑（上海）教育科技有限公司. MIT; see Resonance-MIT.txt.
+llama.cpp / ggml: Copyright (c) 2023-2026 The ggml authors. MIT; see llama.cpp-MIT.txt.
+Pinned llama.cpp revision: ad6c66839af3c5646fba8c6c2e2087a1e4e38948.
+R2T2 inference prompt/audio integration is adapted from netease-youdao/Confucius4-R2T2 r2t2_llama/native_ext.cpp. Copyright 2026 NetEase Youdao. Apache-2.0; see R2T2-CODE-APACHE-2.0.txt. Modified for Android CPU, JNI, bounded inputs, lifecycle and cancellation.
+Weights use the separate NetEase Youdao Model Use License Agreement. See R2T2-MODEL-LICENSE-zh.txt (controlling Chinese version) and R2T2-MODEL-LICENSE-en.txt. The APK does not contain weights; it downloads and verifies the official Q4_K_M decoder and Q8_0 projector without modifying them.
+
+该 Android 集成对原模型的接口与运行环境所作的改动与原模型原始权利人无关，原始权利人对该集成不背书、不担保、不承担责任。
+
+Native vendor attributions are included in native-vendors.txt. Frontend runtime dependency license texts are included in frontend-dependencies.txt.

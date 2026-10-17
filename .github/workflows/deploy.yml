@@ -1,0 +1,40 @@
+name: Deploy
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Typecheck frontend
+        run: pnpm --filter ./frontend typecheck
+
+      - name: Test frontend
+        run: pnpm --filter ./frontend test
+
+      - name: Typecheck worker
+        run: pnpm --filter ./worker typecheck
+
+      - name: Deploy worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npm install -g wrangler
+          wrangler deploy

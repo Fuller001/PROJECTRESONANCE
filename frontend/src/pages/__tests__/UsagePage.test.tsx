@@ -1,0 +1,196 @@
+/** Usage flow regressions render router links and typed DOM motion stubs. */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render as renderComponent, type RenderOptions } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { createElement, type HTMLAttributes, type ReactElement, type ReactNode } from 'react';
+
+const render = (ui: ReactElement, options?: RenderOptions) => renderComponent(<MemoryRouter>{ui}</MemoryRouter>, options);
+import '@testing-library/jest-dom';
+import UsagePage from '../UsagePage';
+
+// ============ Mocks ============
+
+const mockStartRecording = vi.fn();
+const mockStopRecording = vi.fn().mockResolvedValue(null);
+const mockTranscribe = vi.fn().mockResolvedValue(null);
+const mockResetASR = vi.fn();
+const mockStartNativeRecording = vi.fn();
+const mockClearTranscript = vi.fn();
+
+let mockIsRecording = false;
+let mockRecError: string | null = null;
+let mockFinalText = '';
+import type { ASRError } from '@/types/asrError';
+let mockAsrError: ASRError | null = null;
+let mockWxTranscript = '';
+
+vi.mock('@/hooks/useAudioRecorder', () => ({
+  useAudioRecorder: () => ({
+    isRecording: mockIsRecording,
+    duration: 3,
+    startRecording: mockStartRecording,
+    stopRecording: mockStopRecording,
+    error: mockRecError,
+    audioLevel: 0.5,
+  }),
+}));
+
+vi.mock('@/hooks/useCloudASR', () => ({
+  useCloudASR: () => ({
+    finalText: mockFinalText,
+    isProcessing: false,
+    error: mockAsrError,
+    errorMessage: mockAsrError?.userMessage ?? null,
+    transcribe: mockTranscribe,
+    reset: mockResetASR,
+  }),
+}));
+
+vi.mock('@/hooks/useWechatBridge', () => ({
+  useWechatBridge: () => ({
+    isWechat: false,
+    startNativeRecording: mockStartNativeRecording,
+    transcript: mockWxTranscript,
+    clearTranscript: mockClearTranscript,
+  }),
+  getWechatDebugInfo: () => ({ env: 'test' }),
+}));
+
+vi.mock('@/hooks/useKeyboardShortcuts', () => ({
+  useKeyboardShortcuts: vi.fn(),
+}));
+
+vi.mock('@/hooks/useAccessibility', () => ({
+  useAccessibility: () => ({ isMotionReduced: true }),
+}));
+
+vi.mock('framer-motion', () => {
+  const forward = (tag: string) => {
+    const Comp = ({ children, ...props }: HTMLAttributes<HTMLElement> & { children?: ReactNode }) => {
+      const safe: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(props)) {
+        if (!['initial', 'animate', 'transition', 'whileTap', 'exit'].includes(k)) safe[k] = v;
+      }
+      return createElement(tag, safe, children);
+    };
+    return Comp;
+  };
+  return { motion: { div: forward('div'), button: forward('button'), span: forward('span'), p: forward('p') } };
+});
+
+describe('UsagePage', () => {
+  const defaultProps = {
+    onSpeak: vi.fn().mockResolvedValue(undefined),
+    onStop: vi.fn(),
+    isSpeaking: false,
+    ttsError: null as string | null,
+    selectedVoice: 'wenrounvsheng',
+    onVoiceChange: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsRecording = false;
+    mockRecError = null;
+    mockFinalText = '';
+    mockAsrError = null;
+    mockWxTranscript = '';
+  });
+
+  // === Idle State ===
+
+  it('renders idle state with title and record button', () => {
+    const { getByText } = render(<UsagePage {...defaultProps} />);
+    expect(getByText('语音识别')).toBeInTheDocument();
+    expect(getByText('点击开始录音')).toBeInTheDocument();
+  });
+
+  it('shows keyboard hint in idle state', () => {
+    const { getAllByText } = render(<UsagePage {...defaultProps} />);
+    expect(getAllByText('空格').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows selected voice name in header when voice is set', () => {
+    const { getByText } = render(<UsagePage {...defaultProps} selectedVoice="wenrounvsheng" />);
+    expect(getByText('温柔女声')).toBeInTheDocument();
+  });
+
+  it('does not show voice name in header when no voice selected', () => {
+    const { queryByText } = render(<UsagePage {...defaultProps} selectedVoice="" />);
+    expect(queryByText('wenrounvsheng')).not.toBeInTheDocument();
+  });
+
+  it('shows flow step labels: 录音, 识别, 朗读', () => {
+    const { getByText } = render(<UsagePage {...defaultProps} />);
+    expect(getByText('录音')).toBeInTheDocument();
+    expect(getByText('识别')).toBeInTheDocument();
+    expect(getByText('朗读')).toBeInTheDocument();
+  });
+
+  // === No Auto-speak ===
+
+  it('does NOT auto-speak on mount', () => {
+    render(<UsagePage {...defaultProps} />);
+    expect(defaultProps.onSpeak).not.toHaveBeenCalled();
+  });
+
+  // === Error Display ===
+
+  it('shows ttsError', () => {
+    const { getByText } = render(<UsagePage {...defaultProps} ttsError="TTS 播放失败" />);
+    expect(getByText('TTS 播放失败')).toBeInTheDocument();
+  });
+
+  it('shows recording error', () => {
+    mockRecError = '麦克风权限被拒绝';
+    const { getByText } = render(<UsagePage {...defaultProps} />);
+    expect(getByText('麦克风权限被拒绝')).toBeInTheDocument();
+  });
+
+  it('shows ASR error', () => {
+    mockAsrError = {
+      code: 'ALL_FAILED',
+      userMessage: '识别暂不可用',
+      userAction: '请稍后重试或联系管理员',
+      retryable: true,
+      fallbackActive: false,
+      diagnostics: {
+        status: null,
+        attempts: 3,
+        totalDurationMs: 25000,
+        timestamp: new Date().toISOString(),
+      },
+    };
+    const { getByText } = render(<UsagePage {...defaultProps} />);
+    expect(getByText('识别暂不可用')).toBeInTheDocument();
+  });
+
+  it('error has role="alert"', () => {
+    const { container } = render(<UsagePage {...defaultProps} ttsError="出错了" />);
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert).toBeTruthy();
+    expect(alert?.textContent).toBe('出错了');
+  });
+
+  // === Debug Info ===
+
+  it('renders debug details in dev mode', () => {
+    const { getByText } = render(<UsagePage {...defaultProps} />);
+    expect(getByText('调试信息')).toBeInTheDocument();
+  });
+
+  // === Heading Accessibility ===
+
+  it('has h2 with correct id', () => {
+    const { container } = render(<UsagePage {...defaultProps} />);
+    const heading = container.querySelector('#usage-heading');
+    expect(heading).toBeTruthy();
+    expect(heading?.tagName).toBe('H2');
+  });
+
+  it('section has aria-labelledby pointing to heading', () => {
+    const { container } = render(<UsagePage {...defaultProps} />);
+    const section = container.querySelector('section');
+    expect(section?.getAttribute('aria-labelledby')).toBe('usage-heading');
+  });
+});

@@ -1,0 +1,111 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "app.lovable.projectresonance"
+    compileSdk = rootProject.ext.compileSdkVersion
+    ndkVersion '28.2.13676358'
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+    defaultConfig {
+        applicationId "app.lovable.projectresonance"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 2
+        versionName "1.1-cpu-offline"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                cppFlags '-O3'
+            }
+        }
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            // Official GGUF weights stay uncompressed so first launch can stream them.
+            noCompress 'gguf'
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDir("$buildDir/generated/bundled-model-assets")
+        }
+    }
+
+    tasks.register("prepareBundledModels") {
+        def source = file("../../../../models")
+        def destination = file("$buildDir/generated/bundled-model-assets/r2t2")
+        def expected = [
+            "Confucius4-R2T2-Q4_K_M.gguf": [1107404736L, "fa3cb46c8c3a66a58812b9098ba6e96a0266d4e8c9b3cf5ba34432fd2f9f6466"],
+            "mmproj-Confucius4-R2T2-Q8_0.gguf": [348336544L, "8dc2c67e6a0484114928142d098db7ad94ae9f34c78948ef9d37a9678418cb65"]
+        ]
+        def sha256 = { File input ->
+            def digest = java.security.MessageDigest.getInstance("SHA-256")
+            input.withInputStream { stream ->
+                byte[] buffer = new byte[1024 * 1024]
+                int count
+                while ((count = stream.read(buffer)) != -1) digest.update(buffer, 0, count)
+            }
+            digest.digest().collect { String.format("%02x", it & 255) }.join()
+        }
+        outputs.upToDateWhen { false }
+        doLast {
+            delete(destination)
+            expected.each { name, spec ->
+                def input = file("$source/$name")
+                if (!input.isFile() || input.length() != spec[0]) throw new GradleException("Missing or wrong-sized bundled model: $input")
+                if (sha256(input) != spec[1]) throw new GradleException("Bundled model SHA-256 mismatch: $input")
+                copy { from input; into destination }
+            }
+        }
+    }
+    tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+        dependsOn(tasks.named("prepareBundledModels"))
+    }
+    // CPU modules are capability-scored with dlopen from nativeLibraryDir on API 24+.
+    packagingOptions {
+        jniLibs { useLegacyPackaging true }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

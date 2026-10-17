@@ -1,0 +1,30 @@
+{
+  "fp16_block": {
+    "onnx_bytes": 201619317,
+    "context_bytes": 101494616,
+    "create_ms": 3956,
+    "run_ms_160tok": 17.9
+  },
+  "w8a16_block": {
+    "onnx_bytes": 50736063,
+    "context_bytes": 51659536,
+    "create_ms": 1670,
+    "run_ms_160tok": 48.7,
+    "cosine_vs_fp16": 0.9999
+  },
+  "kv_fp16_block": {
+    "onnx_bytes": 201352228,
+    "create_ms": 5189,
+    "run_ms_1tok": [
+      7.3,
+      6.0,
+      5.4
+    ],
+    "cosine_vs_full": 1.0
+  },
+  "w4a16_block": {
+    "onnx_bytes": 25560000,
+    "cosine_vs_fp16": 0.96988,
+    "qnn": "rejected: int4 QDQ assigned to CPU EP"
+  }
+}

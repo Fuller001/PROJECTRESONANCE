@@ -1,0 +1,14 @@
+node_modules
+.wrangler/
+.claude/
+.env
+.dev.vars
+*.log
+NUL
+*.tsbuildinfo
+.gradle/
+*.apk
+*.gguf
+*.mp4
+.cxx/
+local.properties
